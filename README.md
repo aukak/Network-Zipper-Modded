@@ -1,5 +1,5 @@
 # Network Zipper Modded
-# All code from [genizy](https://github.com/genizy)
+## idea from [genizy](https://github.com/genizy)
 
 Genizys discord: [https://discord.gg/NAFw4ykZ7n](https://discord.gg/NAFw4ykZ7n)
 
