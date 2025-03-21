@@ -6,17 +6,13 @@
     "downloads",
     "storage",
     "activeTab",
-    "tabs",
-    "webRequest",
-    "webRequestBlocking"
+    "tabs"
   ],
   "host_permissions": [
     "http://*/*",
     "https://*/*"
   ],
-  "action": {
-    "default_popup": "panel.html"
-  },
+  "devtools_page": "devtools.html",
   "description": "Extension that lets you download the network tab in a zip file. Modded by Aukak.",
   "homepage_url": "https://github.com/aukak/network-zipper-modded",
   "icons": {
@@ -24,5 +20,14 @@
     "32": "icon/icon32.png",
     "48": "icon/icon48.png",
     "128": "icon/icon128.png"
-  }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["panel.js"]
+    }
+  ]
 }
