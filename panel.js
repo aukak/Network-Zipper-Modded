@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const fileListDiv = document.getElementById("fileList");
     const downloadBtn = document.getElementById("download");
     const refreshBtn = document.getElementById("refresh");
+    const inspectBtn = document.getElementById("inspect");
     const beautify = document.getElementById('beautify');
     const fileCountSpan = document.getElementById("fileCount");
     const versionSpan = document.getElementById("version");
@@ -11,7 +12,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const settingsButton = document.getElementById("settingsButton");
     const settingsModal = document.getElementById("settingsModal");
     const closeModal = document.querySelector(".close");
+    const creditsDiv = document.getElementById("credits");
     let files = {};
+    let isInspecting = false;
 
     // Fetch and display the version from manifest.json
     fetch(chrome.runtime.getURL('manifest.json'))
@@ -22,7 +25,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const textFileExtensions = [".html", ".css", ".js", ".json", ".txt"];
 
-    // File Search
+    // File Search with CSS style
     searchInput.addEventListener("input", function () {
         const query = searchInput.value.toLowerCase();
         const fileItems = fileListDiv.querySelectorAll("div");
@@ -51,6 +54,95 @@ document.addEventListener("DOMContentLoaded", function () {
     window.addEventListener("click", function (event) {
         if (event.target === settingsModal) {
             settingsModal.style.display = "none";
+        }
+    });
+
+    // Inspect Element
+    function startInspecting() {
+        isInspecting = true;
+        inspectBtn.textContent = "Stop Inspecting";
+        inspectBtn.classList.add("primary");
+
+        chrome.devtools.inspectedWindow.eval(`
+            (function() {
+                const style = document.createElement('style');
+                style.textContent = \`
+                    .network-zipper-hover {
+                        outline: 2px solid red !important;
+                    }
+                \`;
+                document.head.appendChild(style);
+
+                function handleMouseOver(event) {
+                    event.target.classList.add('network-zipper-hover');
+                }
+
+                function handleMouseOut(event) {
+                    event.target.classList.remove('network-zipper-hover');
+                }
+
+                function handleClick(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const element = event.target;
+
+                    const urls = Array.from(element.querySelectorAll('*'))
+                        .map(el => el.src || el.href || el.style?.backgroundImage?.replace(/url\\(["']?(.*?)["']?\\)/, "$1"))
+                        .filter(url => url && (url.startsWith('http://') || url.startsWith('https://')));
+
+                    window.postMessage({ type: 'NETWORK_ZIPPER_INSPECT', urls }, '*');
+                }
+
+                document.addEventListener('mouseover', handleMouseOver);
+                document.addEventListener('mouseout', handleMouseOut);
+                document.addEventListener('click', handleClick, true);
+
+                window.networkZipperCleanup = function() {
+                    document.removeEventListener('mouseover', handleMouseOver);
+                    document.removeEventListener('mouseout', handleMouseOut);
+                    document.removeEventListener('click', handleClick, true);
+                    document.head.removeChild(style);
+                };
+            })();
+        `);
+    }
+
+    function stopInspecting() {
+        isInspecting = false;
+        inspectBtn.textContent = "Inspect Element";
+        inspectBtn.classList.remove("primary");
+
+        chrome.devtools.inspectedWindow.eval(`
+            if (window.networkZipperCleanup) {
+                window.networkZipperCleanup();
+            }
+        `);
+    }
+
+    inspectBtn.addEventListener("click", function () {
+        if (isInspecting) {
+            stopInspecting();
+        } else {
+            startInspecting();
+        }
+    });
+
+    // Listen for messages from the inspected page
+    window.addEventListener("message", function (event) {
+        if (event.data.type === 'NETWORK_ZIPPER_INSPECT') {
+            const urls = event.data.urls;
+            files = {};
+            fileListDiv.innerHTML = "";
+            urls.forEach(url => {
+                files[url] = { request: { url } };
+                fileListDiv.innerHTML += `
+                    <div>
+                        <span>${url}</span>
+                    </div>
+                `;
+            });
+            fileCountSpan.textContent = urls.length;
+            stopInspecting();
         }
     });
 
@@ -166,4 +258,9 @@ document.addEventListener("DOMContentLoaded", function () {
     discordBtn.addEventListener("click", function () {
         window.open("https://discord.gg/NAFw4ykZ7n", "_blank");
     });
+
+    // Display credits in the settings page
+    creditsDiv.innerHTML = `
+        <p>Network Zipper Modded - Created by aukak</p>
+    `;
 });
