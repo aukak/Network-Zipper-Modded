@@ -2,8 +2,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const fileListDiv = document.getElementById("fileList");
     const downloadBtn = document.getElementById("download");
     const refreshBtn = document.getElementById("refresh");
-    const inspectBtn = document.getElementById("inspect");
-    const beautify = document.getElementById('beautify');
     const fileCountSpan = document.getElementById("fileCount");
     const versionSpan = document.getElementById("version");
     const githubBtn = document.getElementById("github");
@@ -13,8 +11,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const settingsModal = document.getElementById("settingsModal");
     const closeModal = document.querySelector(".close");
     const creditsDiv = document.getElementById("credits");
+    const progressBar = document.querySelector(".progress-bar .progress");
     let files = {};
-    let isInspecting = false;
 
     // Fetch and display the version from manifest.json
     fetch(chrome.runtime.getURL('manifest.json'))
@@ -23,9 +21,9 @@ document.addEventListener("DOMContentLoaded", function () {
             versionSpan.textContent = `v${manifest.version}`;
         });
 
-    const textFileExtensions = [".html", ".css", ".js", ".json", ".txt"];
+    const textFileExtensions = [".html", ".htm", "css", "js", "json"];
 
-    // File Search with CSS style
+    // File Search
     searchInput.addEventListener("input", function () {
         const query = searchInput.value.toLowerCase();
         const fileItems = fileListDiv.querySelectorAll("div");
@@ -34,10 +32,10 @@ document.addEventListener("DOMContentLoaded", function () {
             const url = item.querySelector("span").textContent.toLowerCase();
             if (url.includes(query)) {
                 item.style.display = "flex";
-                item.style.backgroundColor = "#f0f0f0"; // Highlight matched items
+                item.style.backgroundColor = "#f0f0f0";
             } else {
                 item.style.display = "none";
-                item.style.backgroundColor = ""; // Reset background if not matched
+                item.style.backgroundColor = "";
             }
         });
     });
@@ -57,95 +55,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Inspect Element
-    function startInspecting() {
-        isInspecting = true;
-        inspectBtn.textContent = "Stop Inspecting";
-        inspectBtn.classList.add("primary");
-
-        chrome.devtools.inspectedWindow.eval(`
-            (function() {
-                const style = document.createElement('style');
-                style.textContent = \`
-                    .network-zipper-hover {
-                        outline: 2px solid red !important;
-                    }
-                \`;
-                document.head.appendChild(style);
-
-                function handleMouseOver(event) {
-                    event.target.classList.add('network-zipper-hover');
-                }
-
-                function handleMouseOut(event) {
-                    event.target.classList.remove('network-zipper-hover');
-                }
-
-                function handleClick(event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    const element = event.target;
-
-                    const urls = Array.from(element.querySelectorAll('*'))
-                        .map(el => el.src || el.href || el.style?.backgroundImage?.replace(/url\\(["']?(.*?)["']?\\)/, "$1"))
-                        .filter(url => url && (url.startsWith('http://') || url.startsWith('https://')));
-
-                    window.postMessage({ type: 'NETWORK_ZIPPER_INSPECT', urls }, '*');
-                }
-
-                document.addEventListener('mouseover', handleMouseOver);
-                document.addEventListener('mouseout', handleMouseOut);
-                document.addEventListener('click', handleClick, true);
-
-                window.networkZipperCleanup = function() {
-                    document.removeEventListener('mouseover', handleMouseOver);
-                    document.removeEventListener('mouseout', handleMouseOut);
-                    document.removeEventListener('click', handleClick, true);
-                    document.head.removeChild(style);
-                };
-            })();
-        `);
-    }
-
-    function stopInspecting() {
-        isInspecting = false;
-        inspectBtn.textContent = "Inspect Element";
-        inspectBtn.classList.remove("primary");
-
-        chrome.devtools.inspectedWindow.eval(`
-            if (window.networkZipperCleanup) {
-                window.networkZipperCleanup();
-            }
-        `);
-    }
-
-    inspectBtn.addEventListener("click", function () {
-        if (isInspecting) {
-            stopInspecting();
-        } else {
-            startInspecting();
-        }
-    });
-
-    // Listen for messages from the inspected page
-    window.addEventListener("message", function (event) {
-        if (event.data.type === 'NETWORK_ZIPPER_INSPECT') {
-            const urls = event.data.urls;
-            files = {};
-            fileListDiv.innerHTML = "";
-            urls.forEach(url => {
-                files[url] = { request: { url } };
-                fileListDiv.innerHTML += `
-                    <div>
-                        <span>${url}</span>
-                    </div>
-                `;
-            });
-            fileCountSpan.textContent = urls.length;
-            stopInspecting();
-        }
-    });
-
     // Add network requests to the file list
     chrome.devtools.network.onRequestFinished.addListener(request => {
         const url = request.request.url;
@@ -153,6 +62,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const urlObj = new URL(url);
             if (urlObj.protocol !== "http:" && urlObj.protocol !== "https:") return;
             files[url] = request;
+
             fileListDiv.innerHTML += `
                 <div>
                     <span>${url}</span>
@@ -164,17 +74,33 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Refresh files
     refreshBtn.addEventListener("click", async function () {
+        // Clear the current file list
+        files = {};
+        fileListDiv.innerHTML = "";
+        fileCountSpan.textContent = "0";
+
+        // Reload the page
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
             chrome.tabs.reload(tabs[0].id);
         });
-        files = {};
-        fileListDiv.innerHTML = "";
     });
 
     // Download files as ZIP
     downloadBtn.addEventListener("click", async function () {
         const zip = new JSZip();
-        const filePromises = Object.keys(files).map(async (url) => {
+        let mainUrl = "network_zipper";
+        try {
+            const urls = Object.keys(files);
+            if (urls.length > 0) {
+                mainUrl = new URL(urls[0]).hostname;
+            }
+        } catch (e) {
+            console.error("Error getting main URL:", e);
+            alert("Failed to determine the main URL. Please try again.");
+            return;
+        }
+
+        const filePromises = Object.keys(files).map(async (url, index) => {
             try {
                 const urlObj = new URL(url);
                 let filePath = urlObj.hostname + urlObj.pathname;
@@ -195,43 +121,39 @@ document.addEventListener("DOMContentLoaded", function () {
                     });
                     fileContent = new TextEncoder().encode(response);
 
-                    if (beautify.checked) {
-                        switch (extension) {
-                            case 'html':
-                                fileContent = html_beautify(response, { indent_size: 2 });
-                                break;
-                            case 'css':
-                                fileContent = css_beautify(response, { indent_size: 2 });
-                                break;
-                            case 'js':
-                                fileContent = js_beautify(response, { indent_size: 2 });
-                                break;
-                            case 'json':
-                                fileContent = JSON.stringify(JSON.parse(response), null, 2);
-                                break;
-                            default:
-                                break;
-                        }
+                    if (fileContent.length === 0) {
+                        const response = await fetch(urlObj, {
+                            headers: {
+                                "Origin": urlObj.origin,
+                                "Referrer": urlObj.href
+                            },
+                            method: "GET"
+                        });
+                        if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+                        const content = await response.text();
+                        fileContent = new TextEncoder().encode(content);
                     }
                 } else {
-                    const response = await fetch(url);
+                    const response = await fetch(url, {
+                        headers: {
+                            "Origin": urlObj.origin,
+                            "Referrer": urlObj.href
+                        },
+                        method: "GET"
+                    });
                     if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
                     const blob = await response.blob();
                     fileContent = await blob.arrayBuffer();
                 }
 
-                // Create folders based on the path
-                const folders = filePath.split("/").slice(0, -1);
-                let currentFolder = zip;
-                folders.forEach(folder => {
-                    currentFolder = currentFolder.folder(folder);
-                });
+                // Update progress bar
+                const progress = ((index + 1) / Object.keys(files).length) * 100;
+                progressBar.style.width = `${progress}%`;
 
-                // Add file to the correct folder
-                const fileName = filePath.split("/").pop();
-                currentFolder.file(fileName, fileContent);
+                zip.file(decodeURIComponent(filePath), fileContent);
             } catch (e) {
                 console.error("Error processing URL:", url, e);
+                alert(`Failed to process file: ${url}. Please check the console for details.`);
             }
         });
 
@@ -240,12 +162,16 @@ document.addEventListener("DOMContentLoaded", function () {
             const zipContent = await zip.generateAsync({ type: "blob" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(zipContent);
-            link.download = "network_zipper.zip";
+            link.download = `${mainUrl}.zip`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         } catch (e) {
             console.error("Error generating zip:", e);
+            alert("Failed to generate the ZIP file. Please try again.");
+        } finally {
+            // Reset progress bar after download
+            progressBar.style.width = "0%";
         }
     });
 
@@ -263,4 +189,31 @@ document.addEventListener("DOMContentLoaded", function () {
     creditsDiv.innerHTML = `
         <p>Network Zipper Modded - Created by aukak</p>
     `;
+
+    // Check for updates
+    fetch('https://raw.githubusercontent.com/aukak/network-zipper-modded/main/manifest.json')
+        .then(response => response.json())
+        .then(latestManifest => {
+            fetch(chrome.runtime.getURL('manifest.json'))
+                .then(response => response.json())
+                .then(currentManifest => {
+                    if (latestManifest.version > currentManifest.version) {
+                        const updateBanner = document.createElement('div');
+                        updateBanner.innerHTML = `
+                            A new version is available! 
+                            <a href="https://github.com/aukak/network-zipper-modded" target="_blank">
+                                Update from v${currentManifest.version} to v${latestManifest.version}
+                            </a>
+                        `;
+                        updateBanner.style.position = 'fixed';
+                        updateBanner.style.top = '0';
+                        updateBanner.style.width = '100%';
+                        updateBanner.style.backgroundColor = 'white';
+                        updateBanner.style.color = 'black';
+                        updateBanner.style.textAlign = 'center';
+                        updateBanner.style.padding = '10px';
+                        document.body.appendChild(updateBanner);
+                    }
+                });
+        });
 });
