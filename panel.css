@@ -60,23 +60,23 @@ body {
     font-size: 14px;
     font-weight: 500;
     color: white;
-    background: linear-gradient(145deg, #4f4f4f, #3a3a3a);
+    background: #4f4f4f;
     transition: all 0.3s ease;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
 .button:hover {
-    background: linear-gradient(145deg, #3a3a3a, #4f4f4f);
+    background:#3a3a3a;
     transform: translateY(-2px);
     box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
 }
 
 .button.primary {
-    background: linear-gradient(145deg, #848484, #6c6c6c);
+    background: #848484;
 }
 
 .button.primary:hover {
-    background: linear-gradient(145deg, #6c6c6c, #848484);
+    background:#6c6c6c;
 }
 
 /* File Info Section */
@@ -168,7 +168,7 @@ body {
     position: fixed;
     bottom: 24px;
     right: 24px;
-    background: linear-gradient(145deg, #6c6c6c, #5f6060);
+    background: #6c6c6c;
     border: none;
     border-radius: 50%;
     width: 56px;
@@ -182,7 +182,7 @@ body {
 }
 
 .settings-button:hover {
-    background: linear-gradient(145deg, #5f6060, #6c6c6c);
+    background: #5f6060;
     transform: translateY(-2px);
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
 }
@@ -311,13 +311,13 @@ body {
     font-size: 14px;
     font-weight: 500;
     color: white;
-    background: linear-gradient(145deg, #4f4f4f, #3a3a3a);
+    background:#4f4f4f;
     transition: all 0.3s ease;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
 .footer-buttons .button:hover {
-    background: linear-gradient(145deg, #3a3a3a, #4f4f4f);
+    background: #3a3a3a;
     transform: translateY(-2px);
     box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
 }
